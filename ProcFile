@@ -1,1 +1,1 @@
-web: gunicorn a_core.wsgi
+web: gunicorn gestion20backend.wsgi
