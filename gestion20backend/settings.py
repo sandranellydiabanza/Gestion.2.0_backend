@@ -1,6 +1,6 @@
 from pathlib import Path
 from datetime import timedelta
-import os
+
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -63,7 +63,7 @@ DATABASES = {
 POSTGRESQL_LOCALLY=True
 if POSTGRESQL_LOCALLY:
     DATABASES['default'] = dj_database_url.config(
-        default=os.environ.get('DATABASE_URL')
+        default='postgresql://postgres:ZoXteYWeUsoeUgFQLibHPuXezLgMGmXl@thomas.proxy.rlwy.net:57520/railway'
     )
        
 
