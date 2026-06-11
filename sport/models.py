@@ -1,58 +1,64 @@
 from django.db import models
+from django.utils import timezone
 
 
-
-# =========================
-# ENUMS / CHOICES
-# =========================
-
-ETABLISSEMENT_CHOICES = [
+ETABLISSEMENTS = [
     ('Saint Jean Ingénieur', 'Saint Jean Ingénieur'),
+    ('Saint Jean Ingenieur', 'Saint Jean Ingenieur'),
     ('Saint Jean School of Management', 'Saint Jean School of Management'),
     ('Prépa Vogt', 'Prépa Vogt'),
+    ('Prepa Vogt', 'Prepa Vogt'),
     ('CPGE', 'CPGE'),
     ('Prépa Saint Jean Douala', 'Prépa Saint Jean Douala'),
+    ('Prepa Saint Jean Douala', 'Prepa Saint Jean Douala'),
 ]
 
-USER_ROLE_CHOICES = [
+USER_ROLES = [
     ('Administrateur', 'Administrateur'),
     ('Responsable sportif', 'Responsable sportif'),
     ('Capitaine equipe', 'Capitaine equipe'),
     ('Étudiant', 'Étudiant'),
+    ('Etudiant', 'Etudiant'),
 ]
 
-SPORT_TYPE_CHOICES = [
+SPORT_TYPES = [
     ('Football', 'Football'),
     ('Basketball', 'Basketball'),
     ('Handball', 'Handball'),
     ('Volleyball', 'Volleyball'),
 ]
 
-COMPETITION_TYPE_CHOICES = [
+COMPETITION_TYPES = [
     ('championnat', 'championnat'),
     ('coupe', 'coupe'),
     ('élimination directe', 'élimination directe'),
+    ('elimination directe', 'elimination directe'),
 ]
 
-COMPETITION_STATUS_CHOICES = [
+COMPETITION_STATUSES = [
     ('Planifié', 'Planifié'),
+    ('Planifie', 'Planifie'),
     ('En cours', 'En cours'),
     ('Terminé', 'Terminé'),
+    ('Termine', 'Termine'),
 ]
 
-MATCH_STATUS_CHOICES = [
+MATCH_STATUSES = [
     ('Planifié', 'Planifié'),
+    ('Planifie', 'Planifie'),
     ('En cours', 'En cours'),
     ('Terminé', 'Terminé'),
+    ('Termine', 'Termine'),
     ('Reporté', 'Reporté'),
+    ('Reporte', 'Reporte'),
 ]
 
-CARD_TYPE_CHOICES = [
+CARD_TYPES = [
     ('yellow', 'yellow'),
     ('red', 'red'),
 ]
 
-NOTIFICATION_TYPE_CHOICES = [
+NOTIFICATION_TYPES = [
     ('match_update', 'match_update'),
     ('schedule', 'schedule'),
     ('result', 'result'),
@@ -60,392 +66,271 @@ NOTIFICATION_TYPE_CHOICES = [
 ]
 
 
-# =========================
-# USER
-# =========================
+def next_id(prefix: str) -> str:
+    return f'{prefix}-{int(timezone.now().timestamp() * 1000)}'
+
 
 class User(models.Model):
-    id = models.CharField(max_length=100, primary_key=True)
-
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
     email = models.EmailField(unique=True)
-
     firstName = models.CharField(max_length=100)
     lastName = models.CharField(max_length=100)
+    motDePasse = models.CharField(max_length=255, blank=True)
+    role = models.CharField(max_length=50, choices=USER_ROLES)
+    etablissement = models.CharField(max_length=100, choices=ETABLISSEMENTS, blank=True)
+    avatarUrl = models.URLField(blank=True)
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
 
-    motDePasse = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True
-    )
+    class Meta:
+        ordering = ['lastName', 'firstName']
 
-    role = models.CharField(
-        max_length=50,
-        choices=USER_ROLE_CHOICES
-    )
-
-    etablissement = models.CharField(
-        max_length=100,
-        choices=ETABLISSEMENT_CHOICES,
-        blank=True,
-        null=True
-    )
-
-    avatarUrl = models.URLField(
-        blank=True,
-        null=True
-    )
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = next_id('u')
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.firstName} {self.lastName}"
+        return f'{self.firstName} {self.lastName}'
 
-
-# =========================
-# COMPETITION
-# =========================
 
 class Competition(models.Model):
-    id = models.CharField(max_length=100, primary_key=True)
-
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
     name = models.CharField(max_length=255)
-
-    type = models.CharField(
-        max_length=50,
-        choices=COMPETITION_TYPE_CHOICES
-    )
-
-    sport = models.CharField(
-        max_length=50,
-        choices=SPORT_TYPE_CHOICES
-    )
-
+    type = models.CharField(max_length=50, choices=COMPETITION_TYPES)
+    sport = models.CharField(max_length=50, choices=SPORT_TYPES)
     startDate = models.DateField()
-
     endDate = models.DateField()
-
     rules = models.TextField()
+    status = models.CharField(max_length=50, choices=COMPETITION_STATUSES)
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
 
-    status = models.CharField(
-        max_length=50,
-        choices=COMPETITION_STATUS_CHOICES
-    )
+    class Meta:
+        ordering = ['-startDate', 'name']
 
-    teamsCount = models.IntegerField()
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = next_id('c')
+        super().save(*args, **kwargs)
+
+    @property
+    def teamsCount(self):
+        team_ids = set()
+        for match in self.matches.all():
+            team_ids.add(match.teamA_id)
+            team_ids.add(match.teamB_id)
+        return len(team_ids)
 
     def __str__(self):
         return self.name
 
 
-# =========================
-# TEAM
-# =========================
-
 class Team(models.Model):
-    id = models.CharField(max_length=100, primary_key=True)
-
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
     name = models.CharField(max_length=255)
-
-    etablissement = models.CharField(
-        max_length=100,
-        choices=ETABLISSEMENT_CHOICES
-    )
-
+    etablissement = models.CharField(max_length=100, choices=ETABLISSEMENTS)
     filiere = models.CharField(max_length=255)
-
-    logoColor = models.CharField(max_length=100)
-
+    logoColor = models.CharField(max_length=40, default='#38bdf8')
     captain = models.ForeignKey(
-        User,
+        'Player',
         on_delete=models.SET_NULL,
         blank=True,
         null=True,
-        related_name='captain_teams'
+        related_name='captained_teams',
     )
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
 
-    captainName = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True
-    )
+    class Meta:
+        ordering = ['name']
 
-    playersCount = models.IntegerField()
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = next_id('t')
+        super().save(*args, **kwargs)
+
+    @property
+    def captainId(self):
+        return self.captain_id
+
+    @property
+    def captainName(self):
+        if not self.captain:
+            return None
+        return f'{self.captain.firstName} {self.captain.lastName}'
+
+    @property
+    def playersCount(self):
+        return self.players.count()
 
     def __str__(self):
         return self.name
 
 
-# =========================
-# PLAYER
-# =========================
-
 class Player(models.Model):
-    id = models.CharField(max_length=100, primary_key=True)
-
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
     firstName = models.CharField(max_length=100)
-
     lastName = models.CharField(max_length=100)
-
-    number = models.IntegerField()
-
+    number = models.PositiveSmallIntegerField()
     position = models.CharField(max_length=100)
-
     className = models.CharField(max_length=255)
+    photoUrl = models.URLField(blank=True)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='players')
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
 
-    photoUrl = models.URLField(
-        blank=True,
-        null=True
-    )
+    class Meta:
+        ordering = ['team__name', 'number', 'lastName']
+        constraints = [
+            models.UniqueConstraint(fields=['team', 'number'], name='unique_player_number_by_team'),
+        ]
 
-    team = models.ForeignKey(
-        Team,
-        on_delete=models.CASCADE,
-        related_name='players'
-    )
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = next_id('p')
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.firstName} {self.lastName}"
+        return f'{self.firstName} {self.lastName}'
 
-
-# =========================
-# MATCH
-# =========================
 
 class Match(models.Model):
-    id = models.CharField(max_length=100, primary_key=True)
-
-    competition = models.ForeignKey(
-        Competition,
-        on_delete=models.CASCADE,
-        related_name='matches'
-    )
-
-    competitionName = models.CharField(max_length=255)
-
-    teamA = models.ForeignKey(
-        Team,
-        on_delete=models.CASCADE,
-        related_name='matches_team_a'
-    )
-
-    teamAName = models.CharField(max_length=255)
-
-    teamALogoColor = models.CharField(max_length=100)
-
-    teamB = models.ForeignKey(
-        Team,
-        on_delete=models.CASCADE,
-        related_name='matches_team_b'
-    )
-
-    teamBName = models.CharField(max_length=255)
-
-    teamBLogoColor = models.CharField(max_length=100)
-
-    scoreA = models.IntegerField(
-        blank=True,
-        null=True
-    )
-
-    scoreB = models.IntegerField(
-        blank=True,
-        null=True
-    )
-
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
+    competition = models.ForeignKey(Competition, on_delete=models.CASCADE, related_name='matches')
+    teamA = models.ForeignKey(Team, on_delete=models.PROTECT, related_name='home_matches')
+    teamB = models.ForeignKey(Team, on_delete=models.PROTECT, related_name='away_matches')
+    scoreA = models.PositiveSmallIntegerField(blank=True, null=True)
+    scoreB = models.PositiveSmallIntegerField(blank=True, null=True)
     date = models.DateField()
-
     time = models.TimeField()
-
     pitch = models.CharField(max_length=255)
-
     referee = models.CharField(max_length=255)
+    status = models.CharField(max_length=50, choices=MATCH_STATUSES, default='Planifié')
+    reportReason = models.TextField(blank=True)
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
 
-    status = models.CharField(
-        max_length=50,
-        choices=MATCH_STATUS_CHOICES
-    )
+    class Meta:
+        ordering = ['date', 'time']
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(teamA=models.F('teamB')),
+                name='match_requires_two_distinct_teams',
+            ),
+        ]
 
-    reportReason = models.TextField(
-        blank=True,
-        null=True
-    )
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = next_id('m')
+        super().save(*args, **kwargs)
 
-    def __str__(self):
-        return f"{self.teamAName} vs {self.teamBName}"
+    @property
+    def competitionName(self):
+        return self.competition.name
 
+    @property
+    def teamAName(self):
+        return self.teamA.name
 
-# =========================
-# CARD RECORD
-# =========================
+    @property
+    def teamALogoColor(self):
+        return self.teamA.logoColor
 
-class CardRecord(models.Model):
-    id = models.CharField(max_length=100, primary_key=True)
+    @property
+    def teamBName(self):
+        return self.teamB.name
 
-    player = models.ForeignKey(
-        Player,
-        on_delete=models.CASCADE,
-        related_name='cards'
-    )
-
-    playerName = models.CharField(max_length=255)
-
-    team = models.ForeignKey(
-        Team,
-        on_delete=models.CASCADE
-    )
-
-    type = models.CharField(
-        max_length=20,
-        choices=CARD_TYPE_CHOICES
-    )
-
-    minute = models.IntegerField()
-
-    match = models.ForeignKey(
-        Match,
-        on_delete=models.CASCADE,
-        related_name='cards'
-    )
+    @property
+    def teamBLogoColor(self):
+        return self.teamB.logoColor
 
     def __str__(self):
-        return f"{self.playerName} - {self.type}"
+        return f'{self.teamAName} vs {self.teamBName}'
 
-
-# =========================
-# GOAL RECORD
-# =========================
 
 class GoalRecord(models.Model):
-    id = models.CharField(max_length=100, primary_key=True)
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
+    match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name='goals')
+    scorer = models.ForeignKey(Player, on_delete=models.PROTECT, related_name='goals')
+    team = models.ForeignKey(Team, on_delete=models.PROTECT, related_name='goals')
+    minute = models.PositiveSmallIntegerField()
 
-    scorer = models.ForeignKey(
-        Player,
-        on_delete=models.CASCADE,
-        related_name='goals'
-    )
+    class Meta:
+        ordering = ['minute', 'id']
 
-    scorerName = models.CharField(max_length=255)
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = next_id('goal')
+        super().save(*args, **kwargs)
 
-    team = models.ForeignKey(
-        Team,
-        on_delete=models.CASCADE
-    )
-
-    minute = models.IntegerField()
-
-    match = models.ForeignKey(
-        Match,
-        on_delete=models.CASCADE,
-        related_name='goals'
-    )
+    @property
+    def scorerName(self):
+        return f'{self.scorer.firstName} {self.scorer.lastName}'
 
     def __str__(self):
-        return self.scorerName
+        return f'{self.scorerName} {self.minute}'
 
 
-# =========================
-# STANDING
-# =========================
+class CardRecord(models.Model):
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
+    match = models.ForeignKey(Match, on_delete=models.CASCADE, related_name='cards')
+    player = models.ForeignKey(Player, on_delete=models.PROTECT, related_name='cards')
+    team = models.ForeignKey(Team, on_delete=models.PROTECT, related_name='cards')
+    type = models.CharField(max_length=20, choices=CARD_TYPES)
+    minute = models.PositiveSmallIntegerField()
 
-class Standing(models.Model):
-    team = models.OneToOneField(
-        Team,
-        on_delete=models.CASCADE,
-        related_name='standing'
-    )
+    class Meta:
+        ordering = ['minute', 'id']
 
-    teamName = models.CharField(max_length=255)
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = next_id('card')
+        super().save(*args, **kwargs)
 
-    etablissement = models.CharField(
-        max_length=100,
-        choices=ETABLISSEMENT_CHOICES
-    )
-
-    played = models.IntegerField()
-
-    won = models.IntegerField()
-
-    drawn = models.IntegerField()
-
-    lost = models.IntegerField()
-
-    points = models.IntegerField()
-
-    goalsFor = models.IntegerField()
-
-    goalsAgainst = models.IntegerField()
-
-    goalDifference = models.IntegerField()
+    @property
+    def playerName(self):
+        return f'{self.player.firstName} {self.player.lastName}'
 
     def __str__(self):
-        return self.teamName
+        return f'{self.playerName} {self.type}'
 
-
-# =========================
-# ETABLISSEMENT STANDING
-# =========================
-
-class EtablissementStanding(models.Model):
-    etablissement = models.CharField(
-        max_length=100,
-        choices=ETABLISSEMENT_CHOICES
-    )
-
-    teamsCount = models.IntegerField()
-
-    matchesPlayed = models.IntegerField()
-
-    matchesWon = models.IntegerField()
-
-    points = models.IntegerField()
-
-    def __str__(self):
-        return self.etablissement
-
-
-# =========================
-# SPORT NOTIFICATION
-# =========================
 
 class SportNotification(models.Model):
-    id = models.CharField(max_length=100, primary_key=True)
-
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
     title = models.CharField(max_length=255)
-
     content = models.TextField()
-
-    type = models.CharField(
-        max_length=50,
-        choices=NOTIFICATION_TYPE_CHOICES
-    )
-
-    date = models.DateTimeField()
-
+    type = models.CharField(max_length=50, choices=NOTIFICATION_TYPES)
+    date = models.DateTimeField(default=timezone.now)
     isRead = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-date']
+
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = next_id('n')
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title
 
 
-# =========================
-# ACTION LOG
-# =========================
-
 class ActionLog(models.Model):
-    id = models.CharField(max_length=100, primary_key=True)
-
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='logs'
-    )
-
+    id = models.CharField(max_length=64, primary_key=True, editable=False)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True, related_name='logs')
     userName = models.CharField(max_length=255)
-
     action = models.CharField(max_length=255)
-
     details = models.TextField()
+    timestamp = models.DateTimeField(default=timezone.now)
 
-    timestamp = models.DateTimeField()
+    class Meta:
+        ordering = ['-timestamp']
+
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = next_id('log')
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.action
-
