@@ -95,7 +95,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS=True
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:4200",
-    
+    "https://frontend2-0-dr7u.vercel.app/"
 ]
 
 REST_FRAMEWORK = {
